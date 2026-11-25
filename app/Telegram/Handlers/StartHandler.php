@@ -28,6 +28,10 @@ class StartHandler
     {
         return implode("\n", [
             '<b>What you can do</b>',
+            '• Ask in your own words, e.g.',
+            '   <i>When is the next flight to Kuala Lumpur?</i>',
+            '   <i>Any delayed arrivals from Dubai tonight?</i>',
+            '   <i>Maldivian flights to Gan tomorrow morning</i>',
             '• Send a flight number, e.g. <code>EK652</code> or <code>Q2 113</code>',
             '• Send a city, airport code or airline, e.g. <code>Dubai</code>, <code>DXB</code>, <code>Emirates</code>',
             '',

@@ -56,6 +56,18 @@ class FlightHandler
             return;
         }
 
+        // A flight number inside a sentence: "is EK652 delayed?"
+        if ($number = $this->flightNumberIn($text)) {
+            $this->lookup($bot, $number);
+
+            return;
+        }
+
+        // Natural-language question: "next flight to Kuala Lumpur?"
+        if (app(AskHandler::class)->answer($bot, $text)) {
+            return;
+        }
+
         $this->search($bot, $text);
     }
 
@@ -75,6 +87,28 @@ class FlightHandler
             parse_mode: ParseMode::HTML,
             reply_markup: Keyboards::flight($flight, $this->isTracked($bot, $flight)),
         ), report: false); // "message is not modified" when nothing changed
+    }
+
+    /**
+     * Find a known flight number mentioned in free text. Candidates must be
+     * written without a space ("ek652") or in capitals ("EK 652"), and must
+     * exist on the board, so phrases like "in 2 hours" are not mistaken.
+     */
+    protected function flightNumberIn(string $text): ?string
+    {
+        preg_match_all('/\b([A-Za-z][A-Za-z0-9]|[0-9][A-Za-z])(\s?)(\d{1,4}[A-Za-z]?)\b/', $text, $matches, PREG_SET_ORDER);
+
+        foreach ($matches as [, $prefix, $space, $digits]) {
+            if ($space !== '' && $prefix !== strtoupper($prefix)) {
+                continue;
+            }
+
+            if ($this->flights->findByNumber($prefix.$digits)->isNotEmpty()) {
+                return $prefix.$digits;
+            }
+        }
+
+        return null;
     }
 
     protected function lookup(Nutgram $bot, string $number): void

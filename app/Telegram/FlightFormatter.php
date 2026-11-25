@@ -68,7 +68,7 @@ class FlightFormatter
     /**
      * One compact line for board lists.
      */
-    public function line(array $f): string
+    public function line(array $f, bool $withPlace = true, bool $withAirline = false): string
     {
         $scheduled = $this->time($f['scheduled_at']);
         $estimated = $f['estimated_at'] ? $this->time($f['estimated_at']) : null;
@@ -82,7 +82,14 @@ class FlightFormatter
 
         [$icon] = self::STATUSES[$f['status']] ?? ['ℹ️'];
 
-        return sprintf('%s %s <b>%s</b> %s', $icon, $time, $this->e($f['flight_number']), $this->e($place ?? ''));
+        return trim(sprintf(
+            '%s %s <b>%s</b>%s%s',
+            $icon,
+            $time,
+            $this->e($f['flight_number']),
+            $withPlace ? ' '.$this->e($place ?? '') : '',
+            $withAirline && $f['airline'] ? ' · '.$this->e($f['airline']) : '',
+        ));
     }
 
     /**

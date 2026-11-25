@@ -96,13 +96,71 @@ class TelegramBotTest extends TestCase
         $this->assertStringContainsString("couldn't find flight <b>ZZ999</b>", $this->sentTexts($bot));
     }
 
-    public function test_city_search(): void
+    public function test_city_name_alone_lists_flights_both_ways(): void
     {
         $bot = $this->bot()->hearText('Dubai')->reply();
         $text = $this->sentTexts($bot);
 
-        $this->assertStringContainsString('Flights matching <b>Dubai</b>', $text);
-        $this->assertStringContainsString('FZ 1025', $text);
+        $this->assertStringContainsString('Dubai (DXB)', $text);
+        $this->assertStringContainsString('Departures to Dubai', $text);
+        $this->assertStringContainsString('Arrivals from Dubai', $text);
+    }
+
+    public function test_partial_word_falls_back_to_search(): void
+    {
+        $bot = $this->bot()->hearText('Emira')->reply();
+
+        $this->assertStringContainsString('Flights matching <b>Emira</b>', $this->sentTexts($bot));
+    }
+
+    public function test_natural_language_question_answers_with_buttons(): void
+    {
+        $bot = $this->bot()->hearText('When is the next flight to Kuala Lumpur?')->reply();
+        $text = $this->sentTexts($bot);
+        $markup = json_encode($this->sent($bot));
+
+        $this->assertStringContainsString('The next departure to Kuala Lumpur (KUL) is <b>AK 075</b> (Air Asia) at <b>10:45</b>', $text);
+        $this->assertStringContainsString('MH 484', $text);
+        $this->assertStringContainsString('Malaysia Airlines', $text);
+        $this->assertStringContainsString('show:departure|AK075|2026-11-25|10:45', $markup);
+        $this->assertMatchesRegularExpression('/qt:\\w{8}:departure\|MH484\|/', $markup);
+        $this->assertStringContainsString('ask:', $markup);
+    }
+
+    public function test_question_with_no_results_explains(): void
+    {
+        $bot = $this->bot()->hearText('flights to Gan after 5pm')->reply();
+
+        $this->assertStringContainsString('No departures to Gan (GAN) after 17:00', $this->sentTexts($bot));
+    }
+
+    public function test_flight_number_inside_sentence(): void
+    {
+        $bot = $this->bot()->hearText('is EK 652 on time?')->reply();
+        $text = $this->sentTexts($bot);
+
+        $this->assertStringContainsString('EK 652', $text);
+        $this->assertStringContainsString('Status:', $text);
+    }
+
+    public function test_track_toggle_and_details_from_question_results(): void
+    {
+        $bot = $this->bot()->hearText('next flight to KL')->reply();
+        preg_match('/qt:(\w{8}):departure\|MH484/', json_encode($this->sent($bot)), $m);
+        $id = $m[1];
+
+        $bot = $this->bot()->hearCallbackQueryData("qt:{$id}:departure|MH484|2026-11-25|12:00")->reply();
+        $this->assertSame(1, FlightSubscription::where('chat_id', self::CHAT_ID)->count());
+        $this->assertStringContainsString('Untrack', json_encode($this->sent($bot)));
+
+        $this->bot()->hearCallbackQueryData("qt:{$id}:departure|MH484|2026-11-25|12:00")->reply();
+        $this->assertSame(0, FlightSubscription::count());
+
+        $bot = $this->bot()->hearCallbackQueryData('show:departure|MH484|2026-11-25|12:00')->reply();
+        $this->assertStringContainsString('Departure to <b>Kuala Lumpur</b>', $this->sentTexts($bot));
+
+        $bot = $this->bot()->hearCallbackQueryData("ask:{$id}")->reply();
+        $this->assertContains('editMessageText', array_column($this->sent($bot), 0));
     }
 
     public function test_arrivals_board_and_paging_callback(): void

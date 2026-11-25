@@ -138,7 +138,7 @@ class TrackingHandler
         $this->refreshButtons($bot, $flightKey);
     }
 
-    protected function subscribe(?int $chatId, string $flightKey): string
+    public function subscribe(?int $chatId, string $flightKey): string
     {
         $flight = Flight::where('flight_key', $flightKey)->first();
 

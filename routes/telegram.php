@@ -2,6 +2,7 @@
 
 /** @var Nutgram $bot */
 
+use App\Telegram\Handlers\AskHandler;
 use App\Telegram\Handlers\BoardHandler;
 use App\Telegram\Handlers\FlightHandler;
 use App\Telegram\Handlers\StartHandler;
@@ -41,7 +42,12 @@ $bot->onCallbackQueryData('untrack:{key}', [TrackingHandler::class, 'untrackCall
 
 $bot->onCommand('weather', WeatherHandler::class)->description('Weather at the airport');
 
-// Plain text (not a command): flight number or city / airline search.
+// Natural-language results: refresh, open a flight card, toggle tracking.
+$bot->onCallbackQueryData('ask:{id}', [AskHandler::class, 'refresh']);
+$bot->onCallbackQueryData('show:{key}', [AskHandler::class, 'show']);
+$bot->onCallbackQueryData('qt:{id}:{key}', [AskHandler::class, 'toggleTrack']);
+
+// Plain text (not a command): flight number, question, or city / airline search.
 $bot->onText('(?!/){text}', [FlightHandler::class, 'text']);
 
 $bot->fallback(function (Nutgram $bot) {
