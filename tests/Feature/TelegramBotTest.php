@@ -239,6 +239,47 @@ class TelegramBotTest extends TestCase
         $this->assertStringContainsString('Partly cloudy', $this->sentTexts($bot));
     }
 
+    public function test_lists_spanning_days_get_day_headings_and_cancelled_is_spelled_out(): void
+    {
+        // The situation from production: 16:54, one KUL departure tonight, the rest tomorrow.
+        $row = fn ($date, $time, $number, $airline, $status) => [
+            'id' => "departure-x-{$number}", 'flightNumber' => $number, 'airline' => $airline, 'airlineCode' => substr($number, 0, 2),
+            'origin' => 'Male', 'originCode' => 'MLE', 'destination' => 'Kuala Lumpur', 'destinationCode' => 'KUL',
+            'scheduledTime' => $time, 'estimatedTime' => $time, 'terminal' => 'T1', 'gate' => '', 'status' => $status,
+            'type' => 'departure', 'category' => 'international', 'date' => $date,
+        ];
+
+        $this->response = ['lastUpdated' => '16:52', 'flights' => [
+            $row('2026-11-25', '23:40', 'MH 486', 'Malaysia Airlines', 'on-time'),
+            $row('2026-11-26', '10:45', 'AK 075', 'Air Asia', 'on-time'),
+            $row('2026-11-26', '12:00', 'MH 484', 'Malaysia Airlines', 'on-time'),
+            $row('2026-11-26', '22:55', 'OD 296', 'Batik Air', 'cancelled'),
+        ]];
+        $this->travelTo(now()->setTime(16, 54));
+        $this->artisan('fis:sync')->assertSuccessful();
+
+        $bot = $this->bot()->hearText('When is the next flight to Kuala Lumpur?')->reply();
+        $text = $this->sentTexts($bot);
+        $markup = json_encode($this->sent($bot), JSON_UNESCAPED_UNICODE);
+
+        $this->assertStringContainsString('is <b>MH 486</b> (Malaysia Airlines) at <b>23:40</b>', $text);
+        $this->assertMatchesRegularExpression('/Today, Wed 25 Nov.*MH 486.*Tomorrow, Thu 26 Nov.*AK 075/s', $text);
+        $this->assertStringContainsString('OD 296</b> · Batik Air · <b>Cancelled</b>', $text);
+        $this->assertStringContainsString('AK 075 · Thu 10:45', $markup);
+        $this->assertStringContainsString('MH 486 · 23:40', $markup);
+        $raw = json_encode($this->sent($bot));
+        $this->assertStringContainsString('show:departure|OD296|2026-11-26|22:55', $raw);
+        $this->assertDoesNotMatchRegularExpression('/qt:\\w{8}:departure\|OD296/', $raw);
+        $this->assertMatchesRegularExpression('/qt:\\w{8}:departure\|AK075/', $raw);
+    }
+
+    public function test_same_day_lists_have_no_day_headings(): void
+    {
+        $bot = $this->bot()->hearText('next flight to KL')->reply();
+
+        $this->assertStringNotContainsString('📅', $this->sentTexts($bot));
+    }
+
     private function setStatus(string $number, string $status, string $estimated): void
     {
         foreach ($this->response['flights'] as &$row) {

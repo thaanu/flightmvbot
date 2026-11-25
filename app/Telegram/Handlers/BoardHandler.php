@@ -80,9 +80,7 @@ class BoardHandler
         if ($items->isEmpty()) {
             $lines[] = 'No more flights on the board right now.';
         } else {
-            $items->each(function ($f) use (&$lines) {
-                $lines[] = $this->format->line($f);
-            });
+            $lines = array_merge($lines, $this->format->linesWithDays($items, fn ($f) => $this->format->line($f)));
         }
 
         $lines[] = '';

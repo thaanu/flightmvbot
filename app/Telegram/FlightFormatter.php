@@ -82,14 +82,86 @@ class FlightFormatter
 
         [$icon] = self::STATUSES[$f['status']] ?? ['ℹ️'];
 
+        // Spell out statuses that explain themselves poorly as an icon.
+        $note = in_array($f['status'], ['cancelled', 'diverted'], true)
+            ? ' · <b>'.self::STATUSES[$f['status']][1].'</b>'
+            : '';
+
         return trim(sprintf(
-            '%s %s <b>%s</b>%s%s',
+            '%s %s <b>%s</b>%s%s%s',
             $icon,
             $time,
             $this->e($f['flight_number']),
             $withPlace ? ' '.$this->e($place ?? '') : '',
             $withAirline && $f['airline'] ? ' · '.$this->e($f['airline']) : '',
+            $note,
         ));
+    }
+
+    /**
+     * Render a list of flights, inserting a day heading ("📅 Tomorrow, Thu 26 Nov")
+     * whenever the day changes. Headings are skipped when every flight is today.
+     *
+     * @param  iterable<array>  $flights
+     * @param  \Closure(array): string  $render
+     * @return list<string>
+     */
+    public function linesWithDays(iterable $flights, \Closure $render): array
+    {
+        $flights = collect($flights);
+        $today = now(config('fis.timezone'))->format('Y-m-d');
+        $days = $flights->map(fn (array $f) => $this->day($f)->format('Y-m-d'))->unique();
+        $headings = $days->count() > 1 || ($days->first() !== null && $days->first() !== $today);
+
+        $lines = [];
+        $current = null;
+
+        foreach ($flights as $f) {
+            $day = $this->day($f);
+
+            if ($headings && $day->format('Y-m-d') !== $current) {
+                $current = $day->format('Y-m-d');
+                $lines[] = '📅 <i>'.$this->dayLabel($day).'</i>';
+            }
+
+            $lines[] = $render($f);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * "Today, Wed 25 Nov" / "Tomorrow, Thu 26 Nov" / "Yesterday, Tue 24 Nov" / "Fri 27 Nov"
+     */
+    public function dayLabel(CarbonImmutable $day): string
+    {
+        $now = now(config('fis.timezone'));
+        $date = $day->format('D j M');
+
+        return match (true) {
+            $day->isSameDay($now) => "Today, {$date}",
+            $day->isSameDay($now->copy()->addDay()) => "Tomorrow, {$date}",
+            $day->isSameDay($now->copy()->subDay()) => "Yesterday, {$date}",
+            default => $date,
+        };
+    }
+
+    /**
+     * Short day prefix for buttons: "" for today, otherwise "Thu ".
+     */
+    public function shortDay(array $f): string
+    {
+        $day = $this->day($f);
+
+        return $day->isSameDay(now(config('fis.timezone'))) ? '' : $day->format('D').' ';
+    }
+
+    /**
+     * The flight's day, by scheduled time (the date the airport lists it under).
+     */
+    public function day(array $f): CarbonImmutable
+    {
+        return $this->time($f['scheduled_at']);
     }
 
     /**

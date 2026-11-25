@@ -165,9 +165,7 @@ class FlightHandler
             if ($group->isNotEmpty()) {
                 $lines[] = '';
                 $lines[] = $heading;
-                $group->each(function ($f) use (&$lines) {
-                    $lines[] = $this->format->line($f);
-                });
+                $lines = array_merge($lines, $this->format->linesWithDays($group, fn ($f) => $this->format->line($f)));
             }
         }
 

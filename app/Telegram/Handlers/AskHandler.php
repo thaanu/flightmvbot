@@ -157,7 +157,7 @@ class AskHandler
                     .($query->placeLabel ? ($type === 'arrival' ? ' from ' : ' to ').$this->format->e($query->placeLabel) : '')
                     .'</b>';
 
-                foreach ($list as $f) {
+                $lines = array_merge($lines, $this->format->linesWithDays($list, function (array $f) use ($query, $singlePlace) {
                     $farEnd = $f['type'] === 'arrival' ? $f['origin_code'] : $f['destination_code'];
                     $line = $this->format->line($f, withPlace: $farEnd !== $singlePlace, withAirline: true);
 
@@ -166,9 +166,9 @@ class AskHandler
                         $line .= ' <i>(via '.$this->format->e(implode(', ', $f['via_routes'])).')</i>';
                     }
 
-                    $lines[] = $line;
-                    $shown->push($f);
-                }
+                    return $line;
+                }));
+                $shown = $shown->merge($list);
 
                 if ($group->count() > $list->count()) {
                     $lines[] = '<i>+'.($group->count() - $list->count()).' more</i>';
@@ -240,7 +240,7 @@ class AskHandler
             $canTrack = ! in_array($f['status'], Flight::FINAL_STATUSES, true);
 
             $row = [InlineKeyboardButton::make(
-                'ℹ️ '.$f['flight_number'].' · '.FlightQuery::timeOf($f)->format('H:i'),
+                'ℹ️ '.$f['flight_number'].' · '.$this->format->shortDay($f).FlightQuery::timeOf($f)->format('H:i'),
                 callback_data: 'show:'.$f['flight_key'],
             )];
 
